@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Мой Ресторан</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; -webkit-tap-highlight-color: transparent; }
+  body { background: #16161c; color: #eee; padding-bottom: 72px; max-width: 480px; margin: 0 auto; overflow-x: hidden; }
+  header { background: #22222b; padding: 10px 14px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 20; box-shadow: 0 2px 8px rgba(0,0,0,0.4); }
+  header .title { font-size: 15px; font-weight: 700; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  header .rep { color: #ffb74d; font-size: 12px; margin-top: 2px; }
+  header .money { color: #4caf50; font-weight: 700; font-size: 16px; text-align: right; }
+  header .guests-count { color: #888; font-size: 11px; text-align: right; }
+  .screen { padding: 14px; display: none; animation: fadeIn 0.2s; }
+  .screen.active { display: block; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  h2 { font-size: 16px; margin-bottom: 10px; color: #ddd; }
+  .card { background: #22222b; border-radius: 12px; padding: 12px; margin-bottom: 10px; animation: fadeIn 0.25s; }
+  .guest { display: flex; align-items: center; gap: 10px; }
+  .avatar { width: 44px; height: 44px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 22px; background: #2e2e3a; flex-shrink: 0; position: relative; }
+  .avatar.vip { background: linear-gradient(135deg, #ffd700, #ff8c00); box-shadow: 0 0 12px rgba(255,180,0,0.5); }
+  .avatar .timer-ring { position: absolute; inset: -3px; border-radius: 50%; border: 2px solid transparent; }
+  .guest-info { flex: 1; min-width: 0; }
+  .guest-name { font-weight: 600; font-size: 14px; }
+  .guest-order { font-size: 12px; color: #aaa; margin-top: 2px; }
+  .timer-bar { height: 4px; background: #333; border-radius: 2px; margin-top: 6px; overflow: hidden; }
+  .timer-bar > div { height: 100%; background: #4caf50; transition: width 0.3s linear; border-radius: 2px; }
+  .timer-bar.warn > div { background: #ff9800; }
+  .timer-bar.danger > div { background: #f44336; }
+  .btn { background: #2b6cb0; color: #fff; border: none; padding: 10px 14px; border-radius: 8px; font-size: 14px; cursor: pointer; width: 100%; margin-top: 8px; transition: transform 0.1s, opacity 0.2s; }
+  .btn:active { transform: scale(0.97); }
+  .btn:disabled { background: #3a3a44; color: #666; cursor: not-allowed; }
+  .btn.green { background: #2f855a; }
+  .btn.gold { background: #b7791f; }
+  .btn.red { background: #c53030; }
+  .btn.small { padding: 6px 10px; font-size: 12px; width: auto; margin-top: 0; border-radius: 6px; }
+  .row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #2e2e3a; }
+  .row:last-child { border-bottom: none; }
+  .row .name { font-size: 14px; }
+  .row .sub { font-size: 11px; color: #888; margin-top: 2px; }
+  .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; background: #22222b; display: flex; border-top: 1px solid #2e2e3a; max-width: 480px; margin: 0 auto; z-index: 20; }
+  .bottom-nav button { flex: 1; background: none; border: none; color: #777; padding: 8px 2px 10px; font-size: 10px; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 1px; transition: color 0.15s; }
+  .bottom-nav button .icon { font-size: 19px; }
+  .bottom-nav button.active { color: #4caf50; }
+  .toast { position: fixed; top: 64px; left: 50%; transform: translateX(-50%) translateY(-10px); background: #2f855a; color: #fff; padding: 9px 18px; border-radius: 20px; font-size: 13px; opacity: 0; transition: all 0.3s; pointer-events: none; z-index: 100; white-space: nowrap; max-width: 90%; overflow: hidden; text-overflow: ellipsis; }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .toast.error { background: #c53030; }
+  .toast.gold { background: #b7791f; }
+  .leader-row { display: flex; align-items: center; padding: 9px 0; border-bottom: 1px solid #2e2e3a; font-size: 13px; gap: 8px; }
+  .leader-row .pos { color: #ffb74d; font-weight: 700; width: 24px; flex-shrink: 0; }
+  .leader-row.me { color: #4caf50; font-weight: 600; background: rgba(76,175,80,0.08); border-radius: 6px; padding-left: 6px; margin-left: -6px; }
+  .empty { color: #666; font-size: 13px; text-align: center; padding: 24px 0; }
+  .tabs { display: flex; gap: 6px; margin-bottom: 10px; overflow-x: auto; padding-bottom: 4px; }
+  .tabs button { background: #2a2a33; color: #aaa; border: none; padding: 7px 12px; border-radius: 16px; font-size: 12px; white-space: nowrap; cursor: pointer; }
+  .tabs button.active { background: #4caf50; color: #fff; }
+  input[type=text] { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #3a3a44; background: #16161c; color: #eee; margin-top: 8px; font-size: 14px; }
+  .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
+  .stat-box { background: #22222b; border-radius: 10px; padding: 10px; text-align: center; }
+  .stat-box .val { font-size: 18px; font-weight: 700; color: #4caf50; }
+  .stat-box .lbl { font-size: 11px; color: #888; margin-top: 2px; }
+  .recipe-tag { display: inline-block; background: #2e2e3a; color: #aaa; font-size: 10px; padding: 2px 6px; border-radius: 4px; margin: 2px 2px 0 0; }
+  .recipe-tag.missing { background: #4a1a1a; color: #f88; }
+  .stock-low { color: #f44336 !important; }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div class="title" id="restName">Мой Ресторан</div>
+    <div class="rep" id="repLabel">⭐ 0</div>
+  </div>
+  <div>
+    <div class="money" id="moneyLabel">0 ₽</div>
+    <div class="guests-count" id="guestsLabel">Гостей: 0</div>
+  </div>
+</header>
+
+<!-- ЗАЛ -->
+<div class="screen active" id="screen-hall">
+  <h2>Зал ресторана</h2>
+  <div id="guestsList"></div>
+  <div class="empty" id="hallEmpty">Гостей пока нет.<br>Жди, или пригласи гостя кнопкой ниже.</div>
+  <button class="btn green" id="spawnBtn" onclick="spawnGuest()">Пригласить гостя</button>
+</div>
+
+<!-- МЕНЮ -->
+<div class="screen" id="screen-menu">
+  <h2>Меню ресторана</h2>
+  <div class="tabs" id="menuTabs"></div>
+  <div id="menuList"></div>
+</div>
+
+<!-- СКЛАД -->
+<div class="screen" id="screen-stock">
+  <h2>Склад и закупка</h2>
+  <div class="tabs" id="stockTabs"></div>
+  <div id="stockList"></div>
+</div>
+
+<!-- РЕЙТИНГ -->
+<div class="screen" id="screen-leader">
+  <h2>Топ ресторанов</h2>
+  <div class="stat-grid">
+    <div class="stat-box"><div class="val" id="statMoney">0</div><div class="lbl">Капитал</div></div>
+    <div class="stat-box"><div class="val" id="statRep">0</div><div class="lbl">Репутация</div></div>
+    <div class="stat-box"><div class="val" id="statOrders">0</div><div class="lbl">Заказов</div></div>
+    <div class="stat-box"><div class="val" id="statTables">0</div><div class="lbl">Столов</div></div>
+  </div>
+  <div id="leaderList"></div>
+</div>
+
+<!-- ЕЩЁ -->
+<div class="screen" id="screen-settings">
+  <h2>Ещё</h2>
+  <div class="card">
+    <div class="row">
+      <div>
+        <div class="name">Название ресторана</div>
+        <div class="sub">Так тебя увидят в рейтинге</div>
+      </div>
+    </div>
+    <input id="nameInput" type="text" placeholder="Введи название" maxlength="24">
+    <button class="btn" onclick="saveName()">Сохранить</button>
+  </div>
+  <div class="card">
+    <div class="row">
+      <div>
+        <div class="name">Расширить зал</div>
+        <div class="sub">+1 стол (больше гостей одновременно)</div>
+      </div>
+      <button class="btn small gold" id="expandBtn" onclick="expandHall()">—</button>
+    </div>
+  </div>
+  <div class="card">
+    <button class="btn red" onclick="resetGame()">Сбросить прогресс</button>
+  </div>
+</div>
+
+<nav class="bottom-nav">
+  <button class="active" data-screen="hall" onclick="nav('hall', this)"><span class="icon">🍽️</span>Зал</button>
+  <button data-screen="menu" onclick="nav('menu', this)"><span class="icon">📋</span>Меню</button>
+  <button data-screen="stock" onclick="nav('stock', this)"><span class="icon">📦</span>Склад</button>
+  <button data-screen="leader" onclick="nav('leader', this)"><span class="icon">🏆</span>Топ</button>
+  <button data-screen="settings" onclick="nav('settings', this)"><span class="icon">⚙️</span>Ещё</button>
+</nav>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ====== ИНГРЕДИЕНТЫ (40) ======
+const INGREDIENTS = [
+  { id:'tomato',    name:'Помидоры',       cost:40,  cat:'Овощи' },
+  { id:'cucumber',  name:'Огурцы',         cost:30,  cat:'Овощи' },
+  { id:'onion',     name:'Лук',            cost:20,  cat:'Овощи' },
+  { id:'garlic',    name:'Чеснок',         cost:25,  cat:'Овощи' },
+  { id:'potato',    name:'Картофель',      cost:35,  cat:'Овощи' },
+  { id:'carrot',    name:'Морковь',        cost:25,  cat:'Овощи' },
+  { id:'cabbage',   name:'Капуста',        cost:30,  cat:'Овощи' },
+  { id:'salad',     name:'Салат',          cost:50,  cat:'Овощи' },
+  { id:'chicken',   name:'Курица',         cost:120, cat:'Мясо и рыба' },
+  { id:'beef',      name:'Говядина',       cost:180, cat:'Мясо и рыба' },
+  { id:'pork',      name:'Свинина',        cost:150, cat:'Мясо и рыба' },
+  { id:'lamb',      name:'Баранина',       cost:200, cat:'Мясо и рыба' },
+  { id:'mince',     name:'Фарш',           cost:130, cat:'Мясо и рыба' },
+  { id:'salmon',    name:'Лосось',         cost:220, cat:'Мясо и рыба' },
+  { id:'shrimp',    name:'Креветки',       cost:250, cat:'Мясо и рыба' },
+  { id:'tuna',      name:'Тунец',          cost:190, cat:'Мясо и рыба' },
+  { id:'milk',      name:'Молоко',         cost:40,  cat:'Молочное' },
+  { id:'cream',     name:'Сливки',         cost:70,  cat:'Молочное' },
+  { id:'butter',    name:'Масло',          cost:60,  cat:'Молочное' },
+  { id:'cheese',    name:'Сыр твёрдый',    cost:90,  cat:'Молочное' },
+  { id:'parmesan',  name:'Пармезан',       cost:120, cat:'Молочное' },
+  { id:'mozzarella',name:'Моцарелла',      cost:100, cat:'Молочное' },
+  { id:'flour',     name:'Мука',           cost:25,  cat:'Бакалея' },
+  { id:'rice',      name:'Рис',            cost:35,  cat:'Бакалея' },
+  { id:'pasta',     name:'Паста',          cost:50,  cat:'Бакалея' },
+  { id:'bread',     name:'Хлеб',           cost:30,  cat:'Бакалея' },
+  { id:'egg',       name:'Яйца',           cost:45,  cat:'Бакалея' },
+  { id:'sugar',     name:'Сахар',          cost:20,  cat:'Бакалея' },
+  { id:'salt',      name:'Соль',           cost:10,  cat:'Бакалея' },
+  { id:'spices',    name:'Специи',         cost:40,  cat:'Бакалея' },
+  { id:'tomatoSauce',name:'Томатный соус', cost:55,  cat:'Соусы' },
+  { id:'mayo',      name:'Майонез',        cost:40,  cat:'Соусы' },
+  { id:'soy',       name:'Соевый соус',    cost:60,  cat:'Соусы' },
+  { id:'honey',     name:'Мёд',            cost:80,  cat:'Соусы' },
+  { id:'oliveOil',  name:'Оливковое масло',cost:90,  cat:'Соусы' },
+  { id:'coffeeBean',name:'Кофе зерно',     cost:100, cat:'Напитки' },
+  { id:'tea',       name:'Чай',            cost:40,  cat:'Напитки' },
+  { id:'wine',      name:'Вино',           cost:300, cat:'Напитки' },
+  { id:'lemonade',  name:'Лимонад',        cost:50,  cat:'Напитки' },
+  { id:'water',     name:'Вода',           cost:15,  cat:'Напитки' },
+];
+
+const ING_MAP = Object.fromEntries(INGREDIENTS.map(i => [i.id, i]));
+
+// ====== БЛЮДА (40) с рецептами ======
+const DISHES = [
+  // Закуски (6)
+  { id:'caesar', name:'Салат Цезарь', emoji:'🥗', cat:'Закуски', price:450, recipe:{salad:1,chicken:1,parmesan:1,bread:1} },
+  { id:'greek', name:'Греческий салат', emoji:'🥙', cat:'Закуски', price:380, recipe:{tomato:1,cucumber:1,onion:1,cheese:1,oliveOil:1} },
+  { id:'bruschetta', name:'Брускетта', emoji:'🍞', cat:'Закуски', price:320, recipe:{bread:1,tomato:1,garlic:1,oliveOil:1} },
+  { id:'cheesePlate', name:'Сырная тарелка', emoji:'🧀', cat:'Закуски', price:600, recipe:{cheese:1,parmesan:1,mozzarella:1,honey:1} },
+  { id:'carpaccio', name:'Карпаччо', emoji:'🥩', cat:'Закуски', price:750, recipe:{beef:1,parmesan:1,oliveOil:1,spices:1} },
+  { id:'vegPlate', name:'Овощная нарезка', emoji:'🥒', cat:'Закуски', price:280, recipe:{tomato:1,cucumber:1,carrot:1} },
+  // Супы (5)
+  { id:'borscht', name:'Борщ', emoji:'🍲', cat:'Супы', price:350, recipe:{cabbage:1,potato:1,carrot:1,beef:1,onion:1} },
+  { id:'mushroomSoup', name:'Крем-суп грибной', emoji:'🍜', cat:'Супы', price:380, recipe:{cream:1,potato:1,onion:1,butter:1} },
+  { id:'solyanka', name:'Солянка', emoji:'🍲', cat:'Супы', price:420, recipe:{pork:1,onion:1,tomatoSauce:1,oliveOil:1} },
+  { id:'tomatoSoup', name:'Томатный суп', emoji:'🍅', cat:'Супы', price:300, recipe:{tomato:1,cream:1,garlic:1,oliveOil:1} },
+  { id:'chickenBroth', name:'Куриный бульон', emoji:'🍲', cat:'Супы', price:280, recipe:{chicken:1,carrot:1,onion:1} },
+  // Горячее (12)
+  { id:'ribeye', name:'Стейк Рибай', emoji:'🥩', cat:'Горячее', price:1500, recipe:{beef:1,butter:1,spices:1,salt:1} },
+  { id:'salmonSteak', name:'Стейк из лосося', emoji:'🐟', cat:'Горячее', price:1200, recipe:{salmon:1,butter:1,spices:1} },
+  { id:'carbonara', name:'Паста Карбонара', emoji:'🍝', cat:'Горячее', price:650, recipe:{pasta:1,pork:1,cream:1,parmesan:1,egg:1} },
+  { id:'bolognese', name:'Паста Болоньезе', emoji:'🍝', cat:'Горячее', price:600, recipe:{pasta:1,mince:1,tomatoSauce:1,onion:1} },
+  { id:'burger', name:'Бургер', emoji:'🍔', cat:'Горячее', price:500, recipe:{bread:1,mince:1,cheese:1,tomato:1,mayo:1} },
+  { id:'margherita', name:'Пицца Маргарита', emoji:'🍕', cat:'Горячее', price:550, recipe:{flour:1,tomatoSauce:1,mozzarella:1,oliveOil:1} },
+  { id:'pepperoni', name:'Пицца Пепперони', emoji:'🍕', cat:'Горячее', price:650, recipe:{flour:1,tomatoSauce:1,mozzarella:1,pork:1} },
+  { id:'chickenGrill', name:'Куриная грудка гриль', emoji:'🍗', cat:'Горячее', price:700, recipe:{chicken:1,oliveOil:1,spices:1} },
+  { id:'plov', name:'Плов', emoji:'🍚', cat:'Горячее', price:650, recipe:{rice:1,lamb:1,carrot:1,onion:1,spices:1} },
+  { id:'risotto', name:'Ризотто', emoji:'🍚', cat:'Горячее', price:750, recipe:{rice:1,cream:1,parmesan:1,butter:1} },
+  { id:'tempura', name:'Креветки темпура', emoji:'🍤', cat:'Горячее', price:900, recipe:{shrimp:1,flour:1,egg:1,soy:1} },
+  { id:'grilledFish', name:'Рыба на гриле', emoji:'🐟', cat:'Горячее', price:850, recipe:{tuna:1,oliveOil:1,spices:1,salt:1} },
+  // Гарниры (4)
+  { id:'fries', name:'Картофель фри', emoji:'🍟', cat:'Гарниры', price:200, recipe:{potato:1,oliveOil:1,salt:1} },
+  { id:'mashed', name:'Картофельное пюре', emoji:'🥔', cat:'Гарниры', price:180, recipe:{potato:1,milk:1,butter:1} },
+  { id:'riceSide', name:'Рис', emoji:'🍚', cat:'Гарниры', price:150, recipe:{rice:1,salt:1} },
+  { id:'vegGrill', name:'Овощи гриль', emoji:'🥦', cat:'Гарниры', price:250, recipe:{tomato:1,cucumber:1,oliveOil:1,spices:1} },
+  // Десерты (6)
+  { id:'tiramisu', name:'Тирамису', emoji:'🍰', cat:'Десерты', price:450, recipe:{cream:1,coffeeBean:1,sugar:1,egg:1,flour:1} },
+  { id:'cheesecake', name:'Чизкейк', emoji:'🍰', cat:'Десерты', price:400, recipe:{cheese:1,cream:1,sugar:1,egg:1} },
+  { id:'iceCream', name:'Мороженое', emoji:'🍦', cat:'Десерты', price:250, recipe:{milk:1,cream:1,sugar:1} },
+  { id:'pannaCotta', name:'Панна котта', emoji:'🍮', cat:'Десерты', price:350, recipe:{cream:1,sugar:1,milk:1} },
+  { id:'honeyCake', name:'Медовик', emoji:'🍰', cat:'Десерты', price:380, recipe:{flour:1,honey:1,egg:1,sugar:1} },
+  { id:'fondant', name:'Шоколадный фондан', emoji:'🍫', cat:'Десерты', price:420, recipe:{flour:1,egg:1,sugar:1,butter:1} },
+  // Напитки (7)
+  { id:'espresso', name:'Эспрессо', emoji:'☕', cat:'Напитки', price:180, recipe:{coffeeBean:1,water:1} },
+  { id:'cappuccino', name:'Капучино', emoji:'☕', cat:'Напитки', price:250, recipe:{coffeeBean:1,milk:1,sugar:1} },
+  { id:'latte', name:'Латте', emoji:'🥛', cat:'Напитки', price:280, recipe:{coffeeBean:1,milk:1,cream:1} },
+  { id:'teaCup', name:'Чай', emoji:'🍵', cat:'Напитки', price:150, recipe:{tea:1,water:1,sugar:1} },
+  { id:'lemonadeDrink', name:'Лимонад', emoji:'🍋', cat:'Напитки', price:200, recipe:{lemonade:1,water:1} },
+  { id:'redWine', name:'Вино красное', emoji:'🍷', cat:'Напитки', price:800, recipe:{wine:1} },
+  { id:'waterBottle', name:'Вода', emoji:'💧', cat:'Напитки', price:100, recipe:{water:1} },
+];
+
+const DISH_MAP = Object.fromEntries(DISHES.map(d => [d.id, d]));
+
+// ====== ГОСТИ ======
+const REGULAR_NAMES = ['Иван','Мария','Алексей','Ольга','Дмитрий','Анна','Сергей','Елена','Павел','Наталья','Артём','Юлия'];
+const VIP_NAMES = [
+  { name:'Президент', emoji:'🤵' },
+  { name:'Знаменитость', emoji:'🎤' },
+  { name:'Бизнесмен', emoji:'💼' },
+  { name:'Блогер', emoji:'📸' },
+  { name:'Спортсмен', emoji:'⚽' },
+  { name:'Режиссёр', emoji:'🎬' },
+];
+
+const LEADERBOARD_FAKE = [
+  { name:'Гранд Кафе', money:250000 },
+  { name:'У Палыча', money:180000 },
+  { name:'Вкусный Дом', money:120000 },
+  { name:'Тёплый Хлеб', money:90000 },
+  { name:'Столичная', money:60000 },
+];
+
+// ====== СОСТОЯНИЕ ======
+const DEFAULT_STATE = {
+  money: 1000,
+  reputation: 0,
+  restName: 'Мой Ресторан',
+  stock: { veg:5, meat:5, bread:5, cheese:5, coffeeBean:5, sugar:5, water:10, tomato:5, potato:5, chicken:5, beef:3, pasta:3, flour:3, egg:3, milk:3, butter:3, onion:5, carrot:5 },
+  guests: [],
+  completedOrders: 0,
+  tables: 3,
+  boughtCount: 0,
+};
+
+let state = JSON.parse(JSON.stringify(DEFAULT_STATE));
+let guestTimers = {};
+
+function load() {
+  const saved = localStorage.getItem('restGame_v2');
+  if (saved) {
+    try {
+      const p = JSON.parse(saved);
+      Object.assign(state, p);
+      if (!state.stock) state.stock = { ...DEFAULT_STATE.stock };
+    } catch(e) {}
+  }
+}
+function save() { localStorage.setItem('restGame_v2', JSON.stringify(state)); }
+
+// ====== УТИЛИТЫ ======
+let toastTimeout;
+function toast(msg, type='') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show' + (type ? ' ' + type : '');
+  clearTimeout(toastTimeout);
+  toastTimeout = setTimeout(() => t.className = 'toast', 2000);
+}
+
+function nav(screen, btn) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('screen-' + screen).classList.add('active');
+  document.querySelectorAll('.bottom-nav button').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  if (screen === 'leader') renderLeaderboard();
+  if (screen === 'settings') { document.getElementById('nameInput').value = state.restName; updateExpandBtn(); }
+  if (screen === 'menu') renderMenu();
+  if (screen === 'stock') renderStock();
+}
+
+function costOf(dish) {
+  let sum = 0;
+  for (const id in dish.recipe) sum += (ING_MAP[id]?.cost || 0) * dish.recipe[id];
+  return sum;
+}
+function hasIngredients(dish) {
+  for (const id in dish.recipe) {
+    if ((state.stock[id] || 0) < dish.recipe[id]) return false;
+  }
+  return true;
+}
+function consumeIngredients(dish) {
+  for (const id in dish.recipe) state.stock[id] -= dish.recipe[id];
+}
+
+// ====== ШАПКА ======
+function renderHeader() {
+  document.getElementById('moneyLabel').textContent = state.money.toLocaleString('ru-RU') + ' ₽';
+  document.getElementById('repLabel').textContent = '⭐ ' + state.reputation;
+  document.getElementById('restName').textContent = state.restName;
+  document.getElementById('guestsLabel').textContent = 'Гостей: ' + state.guests.length + '/' + state.tables;
+}
+
+// ====== ЗАЛ ======
+function spawnGuest() {
+  if (state.guests.length >= state.tables) return toast('Все столы заняты, обслужи сначала', 'error');
+  const isVip = Math.random() < 0.18;
+  const dish = DISHES[Math.floor(Math.random() * DISHES.length)];
+  let guest;
+  if (isVip) {
+    const v = VIP_NAMES[Math.floor(Math.random() * VIP_NAMES.length)];
+    guest = {
+      id: 'g' + Date.now() + Math.random(),
+      name: v.name,
+      emoji: v.emoji,
+      isVip: true,
+      dishId: dish.id,
+      dishName: dish.name,
+      dishEmoji: dish.emoji,
+      price: Math.floor(dish.price * 2.5),
+      timeLeft: 45,
+      maxTime: 45,
+    };
+  } else {
+    guest = {
+      id: 'g' + Date.now() + Math.random(),
+      name: REGULAR_NAMES[Math.floor(Math.random() * REGULAR_NAMES.length)],
+      emoji: '🙂',
+      isVip: false,
+      dishId: dish.id,
+      dishName: dish.name,
+      dishEmoji: dish.emoji,
+      price: dish.price,
+      timeLeft: 30,
+      maxTime: 30,
+    };
+  }
+  state.guests.push(guest);
+  startGuestTimer(guest.id);
+  save();
+  renderGuests();
+}
+
+function startGuestTimer(id) {
+  if (guestTimers[id]) clearInterval(guestTimers[id]);
+  guestTimers[id] = setInterval(() => {
+    const g = state.guests.find(x => x.id === id);
+    if (!g) { clearInterval(guestTimers[id]); delete guestTimers[id]; return; }
+    g.timeLeft -= 1;
+    if (g.timeLeft <= 0) {
+      clearInterval(guestTimers[id]);
+      delete guestTimers[id];
+      guestLeft(g);
+    } else {
+      updateGuestTimerUI(g);
+    }
+  }, 1000);
+}
+
+function guestLeft(guest) {
+  const idx = state.guests.findIndex(g => g.id === guest.id);
+  if (idx === -1) return;
+  state.guests.splice(idx, 1);
+  if (!guest.isVip) {
+    state.reputation = Math.max(0, state.reputation - 1);
+  } else {
+    state.reputation = Math.max(0, state.reputation - 3);
+  }
+  toast(guest.name + ' ушёл недовольным 😞', 'error');
+  save();
+  renderHeader();
+  renderGuests();
+}
+
+function renderGuests() {
+  const list = document.getElementById('guestsList');
+  const empty = document.getElementById('hallEmpty');
+  if (state.guests.length === 0) {
+    list.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+  list.innerHTML = state.guests.map(g => {
+    const dish = DISH_MAP[g.dishId];
+    const canServe = dish && hasIngredients(dish);
+    const pct = Math.max(0, (g.timeLeft / g.maxTime) * 100);
+    const cls = pct < 25 ? 'danger' : pct < 50 ? 'warn' : '';
+    return `
+      <div class="card" data-guest="${g.id}">
+        <div class="guest">
+          <div class="avatar ${g.isVip ? 'vip' : ''}">${g.emoji}</div>
+          <div class="guest-info">
+            <div class="guest-name">${g.name}${g.isVip ? ' 👑 VIP' : ''}</div>
+            <div class="guest-order">${g.dishEmoji} ${g.dishName} — ${g.price} ₽</div>
+            <div class="timer-bar ${cls}"><div style="width:${pct}%"></div></div>
+          </div>
+        </div>
+        <button class="btn ${g.isVip ? 'gold' : 'green'}" onclick="serveGuest('${g.id}')" ${canServe ? '' : 'disabled'}>
+          ${canServe ? 'Подать блюдо' : 'Нет продуктов'}
+        </button>
+      </div>
+    `;
+  }).join('');
+}
+
+function updateGuestTimerUI(guest) {
+  const card = document.querySelector(`[data-guest="${guest.id}"]`);
+  if (!card) return;
+  const pct = Math.max(0, (guest.timeLeft / guest.maxTime) * 100);
+  const bar = card.querySelector('.timer-bar');
+  bar.className = 'timer-bar ' + (pct < 25 ? 'danger' : pct < 50 ? 'warn' : '');
+  bar.querySelector('div').style.width = pct + '%';
+}
+
+function serveGuest(id) {
+  const idx = state.guests.findIndex(g => g.id === id);
+  if (idx === -1) return;
+  const guest = state.guests[idx];
+  const dish = DISH_MAP[guest.dishId];
+  if (!dish) return;
+  if (!hasIngredients(dish)) return toast('Нет продуктов для этого блюда', 'error');
+  consumeIngredients(dish);
+  if (guestTimers[id]) { clearInterval(guestTimers[id]); delete guestTimers[id]; }
+  state.money += guest.price;
+  state.reputation += guest.isVip ? 5 : 1;
+  state.completedOrders++;
+  state.guests.splice(idx, 1);
+  save();
+  renderHeader();
+  renderGuests();
+  toast('+' + guest.price + ' ₽' + (guest.isVip ? ' 👑' : ''), 'gold');
+}
+
+// ====== МЕНЮ ======
+let menuCat = 'Все';
+function renderMenu() {
+  const cats = ['Все', ...new Set(DISHES.map(d => d.cat))];
+  document.getElementById('menuTabs').innerHTML = cats.map(c =>
+    `<button class="${c === menuCat ? 'active' : ''}" onclick="setMenuCat('${c}')">${c}</button>`
+  ).join('');
+  const list = menuCat === 'Все' ? DISHES : DISHES.filter(d => d.cat === menuCat);
+  document.getElementById('menuList').innerHTML = list.map(d => {
+    const can = hasIngredients(d);
+    const cost = costOf(d);
+    const margin = d.price - cost;
+    return `
+      <div class="card">
+        <div class="row">
+          <div>
+            <div class="name">${d.emoji} ${d.name}</div>
+            <div class="sub">Себестоимость: ${cost} ₽ · Наценка: ${margin} ₽</div>
+            <div style="margin-top:4px">${Object.entries(d.recipe).map(([id, n]) =>
+              `<span class="recipe-tag ${(state.stock[id]||0) < n ? 'missing' : ''}">${ING_MAP[id].name}×${n}</span>`
+            ).join('')}</div>
+          </div>
+          <div style="text-align:right;flex-shrink:0">
+            <div style="color:#4caf50;font-weight:700">${d.price} ₽</div>
+            <div style="font-size:10px;color:${can ? '#4caf50' : '#f44336'}">${can ? 'готово' : 'нет'}</div>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+function setMenuCat(c) { menuCat = c; renderMenu(); }
+
+// ====== СКЛАД ======
+let stockCat = 'Все';
+function renderStock() {
+  const cats = ['Все', ...new Set(INGREDIENTS.map(i => i.cat))];
+  document.getElementById('stockTabs').innerHTML = cats.map(c =>
+    `<button class="${c === stockCat ? 'active' : ''}" onclick="setStockCat('${c}')">${c}</button>`
+  ).join('');
+  const list = stockCat === 'Все' ? INGREDIENTS : INGREDIENTS.filter(i => i.cat === stockCat);
+  document.getElementById('stockList').innerHTML = list.map(ing => {
+    const count = state.stock[ing.id] || 0;
+    return `
+      <div class="card">
+        <div class="row">
+          <div>
+            <div class="name">${ing.name}</div>
+            <div class="sub ${count === 0 ? 'stock-low' : ''}">У тебя: ${count} шт.</div>
+          </div>
+          <button class="btn small green" onclick="buyIngredient('${ing.id}')">+1 за ${ing.cost} ₽</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+function setStockCat(c) { stockCat = c; renderStock(); }
+
+function buyIngredient(id) {
+  const ing = ING_MAP[id];
+  if (!ing) return;
+  if (state.money < ing.cost) return toast('Не хватает денег', 'error');
+  state.money -= ing.cost;
+  state.stock[id] = (state.stock[id] || 0) + 1;
+  save();
+  renderHeader();
+  renderStock();
+  toast('Куплено: ' + ing.name);
+}
+
+// ====== РЕЙТИНГ ======
+function renderLeaderboard() {
+  const myScore = state.money + state.reputation * 1000;
+  document.getElementById('statMoney').textContent = state.money.toLocaleString('ru-RU') + ' ₽';
+  document.getElementById('statRep').textContent = state.reputation;
+  document.getElementById('statOrders').textContent = state.completedOrders;
+  document.getElementById('statTables').textContent = state.tables;
+  const all = LEADERBOARD_FAKE.concat([{ name: state.restName, money: myScore, me: true }])
+    .sort((a, b) => b.money - a.money);
+  document.getElementById('leaderList').innerHTML = all.map((r, i) => `
+    <div class="leader-row ${r.me ? 'me' : ''}">
+      <div class="pos">${i + 1}</div>
+      <div style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.name}${r.me ? ' (ты)' : ''}</div>
+      <div style="flex-shrink:0">${r.money.toLocaleString('ru-RU')} ₽</div>
+    </div>
+  `).join('');
+}
+
+// ====== НАСТРОЙКИ ======
+function saveName() {
+  const v = document.getElementById('nameInput').value.trim();
+  if (!v) return toast('Введи название', 'error');
+  state.restName = v;
+  save();
+  renderHeader();
+  toast('Название сохранено');
+}
+
+function expandCost() { return state.tables * 5000; }
+function updateExpandBtn() {
+  const btn = document.getElementById('expandBtn');
+  const cost = expandCost();
+  btn.textContent = cost.toLocaleString('ru-RU') + ' ₽';
+  btn.disabled = state.money < cost;
+}
+function expandHall() {
+  const cost = expandCost();
+  if (state.money < cost) return toast('Не хватает денег', 'error');
+  state.money -= cost;
+  state.tables++;
+  save();
+  renderHeader();
+  updateExpandBtn();
+  toast('Зал расширен! Теперь столов: ' + state.tables);
+}
+
+function resetGame() {
+  if (!confirm('Точно сбросить весь прогресс?')) return;
+  Object.values(guestTimers).forEach(clearInterval);
+  guestTimers = {};
+  localStorage.removeItem('restGame_v2');
+  state = JSON.parse(JSON.stringify(DEFAULT_STATE));
+  renderAll();
+  toast('Прогресс сброшен');
+}
+
+// ====== СТАРТ ======
+function renderAll() {
+  renderHeader();
+  renderGuests();
+  renderMenu();
+  renderStock();
+  renderLeaderboard();
+  updateExpandBtn();
+}
+
+load();
+renderAll();
+
+// Автоспавн гостей каждые 8 секунд
+setInterval(() => {
+  if (state.guests.length < state.tables && Math.random() < 0.6) spawnGuest();
+}, 8000);
+
+// Telegram
+if (window.Telegram && window.Telegram.WebApp) {
+  window.Telegram.WebApp.ready();
+  window.Telegram.WebApp.expand();
+  window.Telegram.WebApp.setHeaderColor('#22222b');
+}
+</script>
+</body>
+</html>
